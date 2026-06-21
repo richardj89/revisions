@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Les révisions d'Ella 🦊</title>
+  <meta name="description" content="Un quiz rigolo et motivant pour réviser, fait pour Ella." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦊</text></svg>" />
+</head>
+<body>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <header class="topbar">
+    <button id="homeBtn" class="topbar__home" type="button" aria-label="Retour à l'accueil">🦊 Les révisions d'Ella</button>
+    <button id="soundBtn" class="topbar__sound" type="button" aria-label="Activer ou couper le son" aria-pressed="true">🔊</button>
+  </header>
+
+  <main id="app" class="app"><!-- Les écrans sont injectés ici --></main>
+
+  <script src="themes.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
