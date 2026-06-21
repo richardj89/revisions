@@ -21,6 +21,24 @@ gros et faciles à toucher.
 - **Confettis et petits sons** pour féliciter (le son se coupe avec 🔇 en haut).
 - **Messages drôles et bienveillants**, même quand on se trompe.
 
+### 📈 Mes progrès
+
+Un bouton **« Voir mes progrès »** (sur l'accueil) ouvre un tableau de bord qui
+mémorise toutes les parties et **mesure la progression et les acquis** :
+
+- **Résumé** : nombre de parties, taux de réussite moyen, étoiles gagnées,
+  meilleure série.
+- **Tendance** : compare les dernières parties aux précédentes (en progression,
+  stable, ou à retravailler).
+- **Graphe** des scores des 10 dernières parties.
+- **Maîtrise par table** (de 2 à 10) avec un niveau calculé à partir du taux de
+  réussite : **Acquis ✅**, **En cours 🟡**, **À revoir 🔴** ou *Pas encore testée*.
+- **Calculs à revoir en priorité** + un bouton **« M'entraîner sur ces calculs 🎯 »**
+  qui lance une partie ciblée sur les points faibles.
+- Un lien discret **« Effacer mes progrès »** pour repartir de zéro.
+
+Toutes ces données restent **sur l'appareil** (rien n'est envoyé sur Internet).
+
 ## Ajouter un nouveau thème plus tard
 
 Tout le contenu est dans **`themes.js`**. Pour ajouter un jeu, on ajoute un objet

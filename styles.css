@@ -474,6 +474,144 @@ body {
   animation: cheer 0.6s ease;
 }
 
+/* ---- Accueil : stats + bouton « Mes progrès » -------------------------- */
+.hero__stat {
+  font-family: var(--display);
+  font-weight: 600;
+  color: var(--grape);
+  margin: 10px 0 0;
+}
+.home-cta { margin-top: 16px; }
+
+/* ---- Écran « Mes progrès » --------------------------------------------- */
+.trend-pill {
+  display: block;
+  width: fit-content;
+  margin: 0 auto 4px;
+  text-align: center;
+  font-family: var(--display);
+  font-weight: 700;
+  background: var(--card);
+  color: var(--text);
+  border: 3px solid var(--tag, var(--grape));
+  border-radius: 999px;
+  padding: 7px 18px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 18px 0 4px;
+}
+.stat-tile {
+  background: var(--ground);
+  border: 3px solid var(--text);
+  border-radius: var(--radius-sm);
+  padding: 16px 10px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.stat-tile__num {
+  display: block;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.8rem;
+  line-height: 1.1;
+}
+.stat-tile__lbl {
+  display: block;
+  font-weight: 800;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+/* Mini-histogramme des dernières parties */
+.spark-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 96px;
+  padding: 10px 12px;
+  background: var(--ground);
+  border: 3px solid var(--text);
+  border-radius: var(--radius-sm);
+}
+.spark {
+  flex: 1;
+  min-width: 8px;
+  background: linear-gradient(var(--mint), var(--grape));
+  border-radius: 6px 6px 0 0;
+}
+
+/* Maîtrise par table */
+.mastery { display: flex; flex-direction: column; gap: 10px; }
+.mastery-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 46px auto;
+  align-items: center;
+  gap: 10px;
+}
+.mastery-row__name { font-weight: 800; }
+.mastery-row__val {
+  font-family: var(--display);
+  font-weight: 700;
+  text-align: right;
+}
+.mastery-bar {
+  height: 14px;
+  background: #E7E3FB;
+  border: 2px solid var(--text);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.mastery-bar__fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+.mastery-row__tag {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 2px solid var(--tag, var(--grape));
+  color: var(--text);
+  background: var(--card);
+}
+
+/* Calculs à revoir */
+.weak-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.weak-chip {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  background: var(--card);
+  border: 3px solid var(--coral);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  text-align: center;
+}
+.weak-chip small {
+  display: block;
+  font-family: var(--body);
+  font-weight: 800;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.reset-line { text-align: center; margin-top: 18px; }
+.linkish {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+  text-decoration: underline;
+  font-size: 0.95rem;
+}
+.linkish:hover { color: var(--coral); }
+
 /* ---- Accessibilité : mouvement réduit ---------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -493,4 +631,8 @@ body {
 @media (max-width: 420px) {
   .choices { grid-template-columns: 1fr 1fr; }
   .quiz-stats { font-size: 0.85rem; }
+}
+@media (max-width: 480px) {
+  .mastery-row { grid-template-columns: 74px 1fr 42px; }
+  .mastery-row__tag { grid-column: 1 / -1; justify-self: start; }
 }

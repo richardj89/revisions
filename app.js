@@ -21,6 +21,7 @@
     streak: 0,          // série en cours
     bestStreak: 0,      // meilleure série de la manche
     locked: false,      // empêche de cliquer deux fois
+    mode: "normal",     // "normal" ou "faibles" (entraînement ciblé)
   };
 
   // --- Son (Web Audio, généré, sans fichier) --------------------------------
@@ -74,6 +75,37 @@
   function getBest(themeId) { return loadSetting("best." + themeId, 0); }
   function setBest(themeId, score) { saveSetting("best." + themeId, score); }
 
+  // --- Mémoire de la progression -------------------------------------------
+  //   history.<id> : liste des parties terminées (date, score, étoiles, série).
+  //   facts.<id>   : statistiques par calcul, ex. "7×8" -> { seen, ok }.
+  function getHistory(themeId) { return loadSetting("history." + themeId, []); }
+  function getFacts(themeId) { return loadSetting("facts." + themeId, {}); }
+
+  // Enregistre le résultat d'un calcul (réussi ou non) pour mesurer les acquis.
+  function recordAnswer(themeId, factKey, ok) {
+    if (!factKey) return;
+    const facts = getFacts(themeId);
+    const f = facts[factKey] || { seen: 0, ok: 0 };
+    f.seen += 1;
+    if (ok) f.ok += 1;
+    facts[factKey] = f;
+    saveSetting("facts." + themeId, facts);
+  }
+
+  // Enregistre une partie terminée (on garde les 60 dernières).
+  function recordSession(themeId, session) {
+    const hist = getHistory(themeId);
+    hist.push(session);
+    if (hist.length > 60) hist.splice(0, hist.length - 60);
+    saveSetting("history." + themeId, hist);
+  }
+
+  function clearProgress(themeId) {
+    saveSetting("history." + themeId, []);
+    saveSetting("facts." + themeId, {});
+    saveSetting("best." + themeId, 0);
+  }
+
   // --- Phrases rigolotes et motivantes --------------------------------------
   const GOOD = [
     "Bravo championne ! 🌟", "Trop forte, Ella ! 💪", "Pile poil exact ! 🎯",
@@ -118,6 +150,17 @@
     return [];
   }
 
+  // Fabrique une question de multiplication a × b (avec sa clé de suivi).
+  function makeMultQuestion(a, b) {
+    const answer = a * b;
+    return {
+      display: `${a} <span class="eq">×</span> ${b}`,
+      choices: makeChoices(answer),
+      answer: String(answer),
+      factKey: `${a}×${b}`,
+    };
+  }
+
   function buildMultiplication(tables) {
     const round = [];
     const seen = new Set();
@@ -129,12 +172,7 @@
       const key = a + "x" + b;
       if (seen.has(key)) continue;
       seen.add(key);
-      const answer = a * b;
-      round.push({
-        display: `${a} <span class="eq">×</span> ${b}`,
-        choices: makeChoices(answer),
-        answer: String(answer),
-      });
+      round.push(makeMultQuestion(a, b));
     }
     return round;
   }
@@ -192,11 +230,19 @@
         <span class="theme-card__soon">À venir 🔜</span>
       </div>`;
 
+    const hist = getHistory("tables");
+    const totalStars = hist.reduce((s, h) => s + (h.stars || 0), 0);
+    const heroStat = hist.length
+      ? `<p class="hero__stat">⭐ ${totalStars} étoiles · ${hist.length} partie${hist.length > 1 ? "s" : ""} jouée${hist.length > 1 ? "s" : ""}</p>`
+      : "";
+
     render(`
       <section class="hero">
         <div class="mascot" aria-hidden="true">${FOX}</div>
         <h1 class="hero__title">Les révisions d'<span class="pop">Ella</span></h1>
         <p class="hero__sub">Choisis un jeu et gagne un max d'étoiles&nbsp;! ⭐</p>
+        ${heroStat}
+        <div class="home-cta"><button class="btn btn--grape" id="progressBtn" type="button">📈 Voir mes progrès</button></div>
       </section>
       <p class="section-label">Les jeux</p>
       <div class="themes">
@@ -205,11 +251,158 @@
       </div>
     `);
 
+    $("#progressBtn").addEventListener("click", () => { sndTap(); showProgress(); });
     app.querySelectorAll("[data-theme]").forEach((btn) => {
       btn.addEventListener("click", () => {
         sndTap();
         openTheme(btn.dataset.theme);
       });
+    });
+  }
+
+  // =========================================================================
+  //  ÉCRAN « MES PROGRÈS » (mémoire + calculs de progression et d'acquis)
+  // =========================================================================
+  const TABLES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  // Détermine le niveau de maîtrise d'une table à partir du taux de réussite.
+  function masteryLevel(seen, ok) {
+    const taux = seen ? ok / seen : 0;
+    if (seen === 0) return { label: "Pas encore testée", emoji: "⚪", color: "#C9C4E8" };
+    if (seen >= 4 && taux >= 0.85) return { label: "Acquis", emoji: "✅", color: "#36C77B" };
+    if (taux >= 0.6) return { label: "En cours", emoji: "🟡", color: "#FFC93C" };
+    return { label: "À revoir", emoji: "🔴", color: "#FF6B6B" };
+  }
+
+  // Agrège les statistiques de tous les calculs d'une table (t × 1 … t × 10).
+  function tableStats(facts, t) {
+    let seen = 0, ok = 0;
+    for (let b = 1; b <= 10; b++) {
+      const f = facts[`${t}×${b}`];
+      if (f) { seen += f.seen; ok += f.ok; }
+    }
+    return { seen, ok, taux: seen ? ok / seen : 0 };
+  }
+
+  // Les calculs les moins réussis (pour l'entraînement ciblé).
+  function weakestFacts(facts, limit) {
+    return Object.keys(facts)
+      .map((k) => ({ key: k, seen: facts[k].seen, ok: facts[k].ok, taux: facts[k].ok / facts[k].seen }))
+      .filter((f) => f.seen >= 1 && f.taux < 0.8)
+      .sort((a, b) => a.taux - b.taux || b.seen - a.seen)
+      .slice(0, limit);
+  }
+
+  function avgPct(arr) {
+    if (!arr.length) return null;
+    return arr.reduce((s, h) => s + (h.score / h.total) * 100, 0) / arr.length;
+  }
+
+  function showProgress() {
+    const themeId = "tables";
+    const hist = getHistory(themeId);
+    const facts = getFacts(themeId);
+
+    if (hist.length === 0) {
+      render(`
+        <div class="panel center">
+          <div class="mascot" aria-hidden="true">${FOX}</div>
+          <h2 class="panel__title">Mes progrès 📈</h2>
+          <p class="panel__hint">Joue une première partie et tout apparaîtra ici&nbsp;: tes étoiles, tes scores et les tables que tu maîtrises&nbsp;!</p>
+          <div class="stack">
+            <button class="btn btn--block" id="playNow" type="button">Jouer maintenant 🚀</button>
+            <button class="btn btn--ghost" id="backHome" type="button">← Les jeux</button>
+          </div>
+        </div>
+      `);
+      $("#playNow").addEventListener("click", () => { sndTap(); openTheme(themeId); });
+      $("#backHome").addEventListener("click", () => { sndTap(); showHome(); });
+      return;
+    }
+
+    // --- Calculs globaux ---
+    const parties = hist.length;
+    const totalStars = hist.reduce((s, h) => s + (h.stars || 0), 0);
+    const bestStreak = hist.reduce((m, h) => Math.max(m, h.best || 0), 0);
+    const moyenne = Math.round(avgPct(hist));
+
+    // --- Tendance : 3 dernières parties vs 3 précédentes ---
+    const last3 = avgPct(hist.slice(-3));
+    const prev3 = avgPct(hist.slice(-6, -3));
+    let trend = { label: "Continue à jouer pour voir ta progression", emoji: "🌱", color: "var(--grape)" };
+    if (prev3 !== null && last3 !== null) {
+      const d = Math.round(last3 - prev3);
+      if (d >= 5) trend = { label: `En progression (+${d}%) — bravo&nbsp;!`, emoji: "📈", color: "var(--leaf)" };
+      else if (d <= -5) trend = { label: `En petite baisse (${d}%) — on s'entraîne&nbsp;!`, emoji: "💪", color: "var(--coral)" };
+      else trend = { label: "Tu gardes bien le rythme", emoji: "➡️", color: "var(--grape)" };
+    }
+
+    // --- Mini-graphe des 10 dernières parties ---
+    const bars = hist.slice(-10).map((h) => {
+      const p = Math.round((h.score / h.total) * 100);
+      return `<div class="spark" style="height:${Math.max(8, p)}%" title="${h.score}/${h.total}"></div>`;
+    }).join("");
+
+    // --- Maîtrise par table ---
+    const rows = TABLES.map((t) => {
+      const s = tableStats(facts, t);
+      const lvl = masteryLevel(s.seen, s.ok);
+      const pct = Math.round(s.taux * 100);
+      return `
+        <div class="mastery-row">
+          <span class="mastery-row__name">Table de ${t}</span>
+          <div class="mastery-bar"><div class="mastery-bar__fill" style="width:${s.seen ? pct : 0}%;background:${lvl.color}"></div></div>
+          <span class="mastery-row__val">${s.seen ? pct + "%" : "—"}</span>
+          <span class="mastery-row__tag" style="--tag:${lvl.color}">${lvl.emoji} ${lvl.label}</span>
+        </div>`;
+    }).join("");
+
+    // --- Points à revoir ---
+    const weak = weakestFacts(facts, 6);
+    const weakHtml = weak.length
+      ? weak.map((f) => `<span class="weak-chip">${f.key.replace("×", " × ")}<small>${f.ok}/${f.seen} réussis</small></span>`).join("")
+      : `<p class="panel__hint">Rien à signaler pour l'instant, tout roule&nbsp;! 🎉</p>`;
+
+    render(`
+      <div class="panel">
+        <div class="center"><div class="mascot" aria-hidden="true">${FOX_HAPPY}</div></div>
+        <h2 class="panel__title">Mes progrès 📈</h2>
+        <p class="trend-pill" style="--tag:${trend.color}">${trend.emoji} ${trend.label}</p>
+
+        <div class="summary-grid">
+          <div class="stat-tile"><span class="stat-tile__num">${parties}</span><span class="stat-tile__lbl">parties jouées</span></div>
+          <div class="stat-tile"><span class="stat-tile__num">${moyenne}%</span><span class="stat-tile__lbl">de réussite</span></div>
+          <div class="stat-tile"><span class="stat-tile__num">⭐&nbsp;${totalStars}</span><span class="stat-tile__lbl">étoiles gagnées</span></div>
+          <div class="stat-tile"><span class="stat-tile__num">🔥&nbsp;${bestStreak}</span><span class="stat-tile__lbl">meilleure série</span></div>
+        </div>
+
+        <p class="section-label">Mes dernières parties</p>
+        <div class="spark-row" aria-label="Scores des dernières parties">${bars}</div>
+
+        <p class="section-label">Mes tables — ce qui est acquis</p>
+        <div class="mastery">${rows}</div>
+
+        <p class="section-label">À revoir en priorité</p>
+        <div class="weak-list">${weakHtml}</div>
+
+        <div class="stack">
+          ${weak.length ? `<button class="btn btn--block" id="trainWeak" type="button">M'entraîner sur ces calculs 🎯</button>` : ""}
+          <button class="btn btn--grape btn--block" id="playNow" type="button">Nouvelle partie 🚀</button>
+          <button class="btn btn--ghost" id="backHome" type="button">← Les jeux</button>
+        </div>
+        <p class="reset-line"><button class="linkish" id="resetBtn" type="button">Effacer mes progrès</button></p>
+      </div>
+    `);
+
+    $("#playNow").addEventListener("click", () => { sndTap(); openTheme(themeId); });
+    $("#backHome").addEventListener("click", () => { sndTap(); showHome(); });
+    const trainBtn = $("#trainWeak");
+    if (trainBtn) trainBtn.addEventListener("click", () => { sndTap(); startWeakRound(weak); });
+    $("#resetBtn").addEventListener("click", () => {
+      if (confirm("Effacer tout l'historique et les progrès d'Ella ? C'est définitif.")) {
+        clearProgress(themeId);
+        showProgress();
+      }
     });
   }
 
@@ -291,7 +484,30 @@
 
   // ---- Démarrer une manche -------------------------------------------------
   function startRound() {
+    state.mode = "normal";
     state.questions = buildRound(state.theme);
+    state.index = 0;
+    state.correct = 0;
+    state.streak = 0;
+    state.bestStreak = 0;
+    state.locked = false;
+    showQuestion();
+  }
+
+  // Entraînement ciblé : une manche bâtie sur les calculs les plus faibles.
+  function startWeakRound(weak) {
+    state.theme = THEMES.find((t) => t.id === "tables");
+    state.mode = "faibles";
+    state.tables = [];
+    const pairs = weak.map((f) => f.key.split("×").map(Number));
+    const round = [];
+    let i = 0;
+    while (round.length < QUESTIONS_PER_ROUND && pairs.length) {
+      const [a, b] = pairs[i % pairs.length];
+      round.push(makeMultQuestion(a, b));
+      i++;
+    }
+    state.questions = shuffle(round);
     state.index = 0;
     state.correct = 0;
     state.streak = 0;
@@ -347,6 +563,9 @@
     const buttons = [...app.querySelectorAll("[data-choice]")];
     buttons.forEach((b) => (b.disabled = true));
 
+    // Mémorise le résultat de ce calcul pour suivre les acquis.
+    if (q.factKey) recordAnswer(state.theme.id, q.factKey, correct);
+
     const mascot = $("#mascot");
     const feedback = $("#feedback");
 
@@ -391,6 +610,17 @@
     const isNewBest = score > prevBest;
     if (isNewBest) setBest(state.theme.id, score);
 
+    // On garde la trace de cette partie pour la page « Mes progrès ».
+    recordSession(state.theme.id, {
+      t: Date.now(),
+      score: score,
+      total: total,
+      stars: stars,
+      best: state.bestStreak,
+      tables: state.tables.slice(),
+      mode: state.mode,
+    });
+
     let title, msg, face;
     if (stars === 3) {
       title = "PARFAIT !"; face = FOX_PARTY;
@@ -418,6 +648,7 @@
         <div class="stack">
           <button class="btn btn--block" id="againBtn" type="button">Rejouer&nbsp;! 🔁</button>
           <button class="btn btn--grape btn--block" id="menuBtn" type="button">Autres tables ✏️</button>
+          <button class="btn btn--ghost" id="progressBtn" type="button">📈 Mes progrès</button>
           <button class="btn btn--ghost" id="backHome" type="button">← Les jeux</button>
         </div>
       </div>
@@ -427,6 +658,7 @@
 
     $("#againBtn").addEventListener("click", () => { sndTap(); startRound(); });
     $("#menuBtn").addEventListener("click", () => { sndTap(); openTheme(state.theme.id); });
+    $("#progressBtn").addEventListener("click", () => { sndTap(); showProgress(); });
     $("#backHome").addEventListener("click", () => { sndTap(); showHome(); });
   }
 
